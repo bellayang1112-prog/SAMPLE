@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>福興鄉農工混雜區之空汙風險地圖分析報告</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;700;900&family=Oswald:wght@500;700&display=swap');
+
+  :root {
+    --bg-color: #2b1111;
+    --surface-color: #3d1a1a;
+    --surface-highlight: #4d2222;
+    --text-main: #fcf5f5;
+    --text-muted: #e0cdcd;
+    --accent: #ed5f5f;
+    --accent-glow: rgba(237, 95, 95, 0.4);
+    --border-color: #5c2c2c;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans TC', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-muted);
+    overflow: hidden; 
+    width: 100vw; height: 100vh; height: 100dvh; 
+  }
+
+  .deck { position: relative; width: 100%; height: 100%; padding-right: clamp(3rem, 5vw, 5rem); }
+
+  .slide {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    padding: clamp(2rem, 5vw, 5rem); padding-right: clamp(4rem, 8vw, 8rem);
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.5s;
+    z-index: 0; display: flex; flex-direction: column; justify-content: center;
+  }
+  .slide.active { opacity: 1; visibility: visible; z-index: 10; }
+
+  .split-layout { display: grid; grid-template-columns: 1fr; gap: clamp(2rem, 4vw, 5rem); height: 100%; align-items: center; }
+  @media (min-width: 1024px) {
+    .split-layout { grid-template-columns: 1fr 1.2fr; }
+    .split-layout.reverse { grid-template-columns: 1.2fr 1fr; }
+  }
+
+  .text-column { display: flex; flex-direction: column; justify-content: center; height: 100%; }
+  .image-column { height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
+
+  .content-card {
+    background-color: var(--surface-color);
+    border-left: clamp(3px, 0.5vw, 6px) solid var(--accent);
+    border: 1px solid var(--border-color); border-left-width: 6px;
+    padding: clamp(1.5rem, 3vw, 2.5rem);
+    max-height: 70vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  }
+  
+  h1 { font-family: 'Oswald', 'Noto Sans TC', sans-serif; font-size: clamp(2.5rem, 6vw, 4.5rem); font-weight: 900; color: var(--text-main); line-height: 1.2; margin-bottom: clamp(1rem, 2vw, 2rem); }
+  h2 { font-family: 'Oswald', 'Noto Sans TC', sans-serif; font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 700; color: var(--text-main); margin-bottom: clamp(1.2rem, 3vw, 2rem); display: inline-block; border-bottom: 2px solid var(--accent); padding-bottom: 0.5rem; }
+  h3 { font-size: clamp(1.2rem, 2vw, 1.5rem); color: var(--text-main); margin-top: clamp(1rem, 2vw, 1.5rem); margin-bottom: 0.5rem; font-weight: 700; display: flex; align-items: center; }
+  h3::before { content: '■'; color: var(--accent); font-size: 0.8em; margin-right: 0.5rem; }
+  h3:first-child { margin-top: 0; }
+  p, li { font-size: clamp(1rem, 1.5vw, 1.2rem); line-height: 1.7; margin-bottom: 0.8rem; }
+  ul { padding-left: 1.2rem; list-style-type: none; }
+  li { position: relative; }
+  li::before { content: '-'; position: absolute; left: -1.2rem; color: var(--accent); }
+
+  .cite { font-size: 0.7em; color: var(--accent); vertical-align: super; }
+
+  img.static-img {
+    width: 100%; height: 100%; max-height: 75vh; object-fit: contain;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.8); border: 1px solid var(--border-color);
+  }
+
+  /* =========================================
+     CSS 圖表與繪製元素樣式
+     ========================================= */
+  .css-illustration {
+    width: 100%; height: 100%; max-height: 75vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 2rem;
+    background: rgba(0,0,0,0.2); border: 1px dashed var(--border-color); border-radius: 12px; padding: 2rem;
+  }
+
+  /* 研究架構流程圖 */
+  .flowchart { display: flex; align-items: center; justify-content: center; width: 100%; gap: 1rem; }
+  .fc-col { display: flex; flex-direction: column; gap: 1rem; flex: 1; }
+  .fc-node { background: var(--surface-color); border: 1px solid var(--accent); padding: 1rem; text-align: center; border-radius: 8px; color: var(--text-main); font-weight: 700; font-size: 1.1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+  .fc-node small { display: block; font-size: 0.8rem; color: var(--text-muted); font-weight: 400; margin-top: 0.3rem; }
+  .fc-arrow { color: var(--accent); font-size: 2rem; font-weight: bold; }
+
+  /* 數據表格 */
+  .data-table-wrapper { width: 100%; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface-color); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  th, td { border: 1px solid var(--border-color); padding: 1rem; text-align: center; font-size: 1.1rem; }
+  th { background: var(--surface-highlight); color: var(--accent); font-family: 'Oswald', sans-serif; letter-spacing: 1px; }
+  td { color: var(--text-main); font-family: monospace; }
+  tbody tr:nth-child(even) { background: rgba(0,0,0,0.1); }
+  tbody tr:hover { background: rgba(237, 95, 95, 0.1); }
+
+  /* 抽象示意圖塊 */
+  .diagram-box { display: flex; justify-content: space-around; width: 100%; align-items: center; }
+  .box-item { background: var(--surface-highlight); padding: 2rem; border-radius: 50%; width: 150px; height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 2px solid var(--border-color); }
+  .box-item.conflict { border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+  .box-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+
+  /* 落差羅盤 */
+  .compass { position: relative; width: 250px; height: 250px; border-radius: 50%; border: 2px dashed var(--border-color); display: flex; align-items: center; justify-content: center; }
+  .compass::after { content: '北'; position: absolute; top: -30px; font-weight: bold; color: var(--text-muted); }
+  .arrow-expected { position: absolute; width: 4px; height: 100px; background: var(--text-muted); transform-origin: bottom center; transform: translateY(-50px) rotate(45deg); }
+  .arrow-expected::after { content: '預期 (西南往東北)'; position: absolute; top: -25px; left: -50px; width: 120px; text-align: center; font-size: 0.8rem; color: var(--text-muted); }
+  .arrow-actual { position: absolute; width: 6px; height: 180px; background: var(--accent); }
+  .arrow-actual::after { content: '實測 (南北向梯度)'; position: absolute; top: -25px; left: -50px; width: 120px; text-align: center; font-size: 0.9rem; font-weight: bold; color: var(--accent); }
+
+  /* 互動滑桿 */
+  .compare-wrapper { position: relative; width: 100%; height: 75vh; overflow: hidden; border-radius: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.8); border: 1px solid var(--border-color); background: var(--surface-color); }
+  .compare-wrapper img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+  .img-base { z-index: 1; }
+  .img-overlay { z-index: 2; clip-path: polygon(0 0, 50% 0, 50% 100%, 0 100%); }
+  .compare-slider { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: ew-resize; z-index: 10; }
+  .compare-handle { position: absolute; top: 0; bottom: 0; left: 50%; width: 4px; background: var(--accent); z-index: 5; pointer-events: none; transform: translateX(-50%); box-shadow: 0 0 10px rgba(0,0,0,0.8); }
+  .compare-handle::after { content: '↔'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--bg-color); color: var(--text-main); border: 2px solid var(--accent); border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold; }
+  .compare-labels { position: absolute; top: 1.5rem; left: 1.5rem; right: 1.5rem; display: flex; justify-content: space-between; z-index: 5; pointer-events: none; }
+  .compare-label { background: rgba(0,0,0,0.7); padding: 6px 16px; border-radius: 20px; font-size: 1rem; color: #fff; border: 1px solid var(--border-color); }
+
+  /* 動畫 */
+  @keyframes sharpReveal { 0% { opacity: 0; transform: translateX(-30px); filter: blur(5px); } 100% { opacity: 1; transform: translateX(0); filter: blur(0); } }
+  .stagger { opacity: 0; }
+  .slide.active .stagger { animation: sharpReveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  .d-1 { animation-delay: 0.1s; } .d-2 { animation-delay: 0.25s; } .d-3 { animation-delay: 0.4s; }
+
+  /* 導航 */
+  .sidebar-nav { position: fixed; right: clamp(0.5rem, 2vw, 2rem); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 1rem; z-index: 100; background: rgba(43, 17, 17, 0.8); padding: 1.5rem 0.5rem; border-radius: 30px; border: 1px solid var(--border-color); backdrop-filter: blur(10px); }
+  .nav-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--text-muted); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: 'Oswald', sans-serif; font-size: 0.8rem; color: var(--text-muted); transition: all 0.3s ease; }
+  .nav-dot.active { background: var(--accent); border-color: var(--accent); color: var(--bg-color); font-weight: 700; transform: scale(1.1); }
+</style>
+</head>
+<body>
+
+<div class="deck">
+
+  <!-- P1 封面 (保留實體圖片 .png) -->
+  <div class="slide active">
+    <div class="split-layout">
+      <div class="text-column">
+        <h1 class="stagger d-1">福興鄉農工混雜區之<br>空汙風險地圖</h1>
+        <div class="content-card stagger d-2" style="background: transparent; border: none; box-shadow: none; padding: 0;">
+          <p>國立成功大學都市計劃學系<span class="cite">[cite: 1]</span></p>
+          <p>指導教授: 李俊霖 <span class="cite">[cite: 1]</span></p>
+          <p style="color: var(--accent); font-weight: 700;">期中報告 - 楊珮如 <span class="cite">[cite: 1]</span></p>
+        </div>
+      </div>
+      <div class="image-column stagger d-3">
+        <img class="static-img" src="cover.png" alt="福興鄉地圖首頁封面">
+      </div>
+    </div>
+  </div>
+
+  <!-- P3 研究動機 (改為純 HTML 示意圖) -->
+  <div class="slide">
+    <div class="split-layout reverse">
+      <div class="image-column stagger d-1">
+        <div class="css-illustration">
+          <h3 style="margin-bottom: 2rem;">資訊落差與空間衝突</h3>
+          <div class="diagram-box">
+            <div class="box-item conflict">
+              <span class="box-icon">🏭</span>
+              <span>工廠開發方<br><small style="color:var(--text-muted)">數據支撐</small></span>
+            </div>
+            <div style="font-size: 2rem; color: var(--accent);">⚡</div>
+            <div class="box-item">
+              <span class="box-icon">🏡</span>
+              <span>當地民眾<br><small style="color:var(--text-muted)">常理判斷</small></span>
+            </div>
+          </div>
+          <p style="text-align: center; margin-top: 1rem; color: var(--accent);">如何用視覺化彌平兩者落差？</p>
+        </div>
+      </div>
+      <div class="text-column">
+        <h2 class="stagger d-1">研究動機</h2>
+        <div class="content-card stagger d-2">
+          <h3>環境權與鄰避設施爭議</h3>
+          <p>近年來環境權備受矚目，各種私人、鄰避設施的開發案爭議不斷 <span class="cite">[cite: 1]</span>。</p>
+          <h3>資訊落差與常理判斷</h3>
+          <p>開發方主張選址已進行適宜性分析，並有專業數據支撐，但民眾往往無法被說服，只能依賴「焚化爐就蓋在那裡怎麼可能不影響我的田」的常理判斷 <span class="cite">[cite: 1]</span>。</p>
+          <h3>研究目的</h3>
+          <p>將現有的環境監測資料圖像化，探討在尚未有嚴格都市計畫規範下的工廠設置，是否過於影響周遭公共設施 <span class="cite">[cite: 1]</span>。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P4 研究範圍選定 (保留實體圖片 .png) -->
+  <div class="slide">
+    <div class="split-layout">
+      <div class="text-column">
+        <h2 class="stagger d-1">研究範圍選定</h2>
+        <div class="content-card stagger d-2">
+          <h3>彰化縣福興鄉</h3>
+          <p>本次範圍選定在彰化縣福興鄉的外埔、元中、外中、三汴、萬豐村，總面積約 803 公頃 <span class="cite">[cite: 1]</span>。</p>
+          <h3>空間衝突</h3>
+          <p>範圍內皆非都市計畫地區，並劃設有福興工業區 <span class="cite">[cite: 1]</span>。</p>
+          <p>區域內工廠點位與農地、住宅建物高度混雜，空間使用衝突顯著 <span class="cite">[cite: 1]</span>。</p>
+        </div>
+      </div>
+      <div class="image-column stagger d-3">
+        <img class="static-img" src="scope.png" alt="福興鄉研究範圍底圖">
+      </div>
+    </div>
+  </div>
+
+  <!-- P5 研究架構 (改為純 HTML 流程圖) -->
+  <div class="slide">
+    <div class="split-layout reverse">
+      <div class="image-column stagger d-1">
+        <div class="css-illustration">
+          <div class="flowchart">
+            <div class="fc-col">
+              <div class="fc-node">資料蒐集</div>
+              <div class="fc-node" style="border-color: #777;">風花圖<small>ASRAD 資料庫</small></div>
+              <div class="fc-node" style="border-color: #777;">工廠點位<small>產發署</small></div>
+              <div class="fc-node" style="border-color: #777;">微型感測器<small>環境部</small></div>
+            </div>
+            <div class="fc-arrow">➔</div>
+            <div class="fc-col">
+              <div class="fc-node">資料處理</div>
+              <div class="fc-node" style="border-color: #777;">繪製預期受影響範圍<small>理論風險</small></div>
+              <div class="fc-node" style="border-color: #777;">繪製空氣品質網格圖<small>實測數值</small></div>
+            </div>
+            <div class="fc-arrow">➔</div>
+            <div class="fc-col">
+              <div class="fc-node">分析結論</div>
+              <div class="fc-node" style="border-color: var(--accent);">雙軌比較<small>釐清實質影響</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="text-column">
+        <h2 class="stagger d-1">研究架構</h2>
+        <div class="content-card stagger d-2">
+          <h3>資料蒐集來源</h3>
+          <p>福興鄉風花圖 (ASRAD大氣科學研究與應用資料庫) <span class="cite">[cite: 1]</span>。</p>
+          <p>登記工廠點位 (經濟部產業發展署) <span class="cite">[cite: 1]</span>。</p>
+          <p>智慧城鄉空品微型感測器 (環境部) <span class="cite">[cite: 1]</span>。</p>
+          <h3>雙軌分析</h3>
+          <p>透過 GIS 空間資訊技術，針對福興工業區周邊進行「理論擴散風險」與「實測空氣品質」之雙軌分析 <span class="cite">[cite: 1]</span>。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P6 夏季白天 (實體圖片 .png) -->
+  <div class="slide">
+    <div class="split-layout">
+      <div class="text-column">
+        <h2 class="stagger d-1">夏季白天分析</h2>
+        <div class="content-card stagger d-2">
+          <h3>理論擴散範圍 (QGIS 扇形緩衝區)</h3>
+          <p>以工廠為中心，根據盛行之西南季風風向，設定擴散角度與影響半徑(約2,000公尺) <span class="cite">[cite: 1]</span>。</p>
+          <h3>實際空氣品質 (IDW 內插網格)</h3>
+          <p>將離散的感測點位數值轉換為連續性網格，真實呈現濃度空間分佈 <span class="cite">[cite: 1]</span>。</p>
+          <p style="color:var(--accent);">➔ 請拖曳右方滑桿疊加比對</p>
+        </div>
+      </div>
+      <div class="image-column stagger d-3">
+        <div class="compare-wrapper">
+          <div class="compare-labels">
+            <span class="compare-label">實際網格 (Raster)</span>
+            <span class="compare-label">預期擴散 (Wedge Buffer)</span>
+          </div>
+          <img class="img-base" src="summer_day_expected.png" alt="夏季白天預期擴散範圍">
+          <img class="img-overlay" src="summer_day_actual.png" alt="夏季白天實際空氣品質">
+          <input type="range" min="0" max="100" value="50" class="compare-slider">
+          <div class="compare-handle"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P7 夏季晚上 (實體圖片 .png) -->
+  <div class="slide">
+    <div class="split-layout">
+      <div class="text-column">
+        <h2 class="stagger d-1">夏季晚上分析</h2>
+        <div class="content-card stagger d-2">
+          <p>基準時間：2025/7/1 8:00 pm <span class="cite">[cite: 1]</span>。</p>
+          <p>同樣利用 QGIS 反距離加權法 (IDW) 與 扇形緩衝區 (Wedge Buffer) 進行對比 <span class="cite">[cite: 1]</span>。</p>
+          <p style="color:var(--accent);">➔ 請拖曳右方滑桿疊加比對</p>
+        </div>
+      </div>
+      <div class="image-column stagger d-3">
+        <div class="compare-wrapper">
+          <div class="compare-labels">
+            <span class="compare-label">實際網格</span>
+            <span class="compare-label">預期擴散</span>
+          </div>
+          <img class="img-base" src="summer_night_expected.png" alt="夏季晚上預期擴散範圍">
+          <img class="img-overlay" src="summer_night_actual.png" alt="夏季晚上實際空氣品質">
+          <input type="range" min="0" max="100" value="50" class="compare-slider">
+          <div class="compare-handle"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P8 冬季白天 (實體圖片 .png) -->
+  <div class="slide">
+    <div class="split-layout">
+      <div class="text-column">
+        <h2 class="stagger d-1">冬季白天分析</h2>
+        <div class="content-card stagger d-2">
+          <p>基準時間：2026/1/1 8:00 am <span class="cite">[cite: 1]</span>。</p>
+          <p>呈現研究區域內真實的濃度空間分佈趨勢，並以灰階色階標註濃度變化 <span class="cite">[cite: 1]</span>。</p>
+          <p style="color:var(--accent);">➔ 請拖曳右方滑桿疊加比對</p>
+        </div>
+      </div>
+      <div class="image-column stagger d-3">
+        <div class="compare-wrapper">
+          <div class="compare-labels">
+            <span class="compare-label">實際網格</span>
+            <span class="compare-label">預期擴散</span>
+          </div>
+          <img class="img-base" src="winter_day_expected.png" alt="冬季白天預期擴散範圍">
+          <img class="img-overlay" src="winter_day_actual.png" alt="冬季白天實際空氣品質">
+          <input type="range" min="0" max="100" value="50" class="compare-slider">
+          <div class="compare-handle"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P9 冬季晚上 (實體圖片 .png) -->
+  <div class="slide">
+    <div class="split-layout">
+      <div class="text-column">
+        <h2 class="stagger d-1">冬季晚上分析</h2>
+        <div class="content-card stagger d-2">
+          <p>基準時間：2026/1/1 8:00 pm <span class="cite">[cite: 1]</span>。</p>
+          <p>對比理論擴散方向與實際觀測點位的空間分布差異 <span class="cite">[cite: 1]</span>。</p>
+          <p style="color:var(--accent);">➔ 請拖曳右方滑桿疊加比對</p>
+        </div>
+      </div>
+      <div class="image-column stagger d-3">
+        <div class="compare-wrapper">
+          <div class="compare-labels">
+            <span class="compare-label">實際網格</span>
+            <span class="compare-label">預期擴散</span>
+          </div>
+          <img class="img-base" src="winter_night_expected.png" alt="冬季晚上預期擴散範圍">
+          <img class="img-overlay" src="winter_night_actual.png" alt="冬季晚上實際空氣品質">
+          <input type="range" min="0" max="100" value="50" class="compare-slider">
+          <div class="compare-handle"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P10 理論與實測落差 (改為純 HTML 羅盤示意圖) -->
+  <div class="slide">
+    <div class="split-layout reverse">
+      <div class="image-column stagger d-1">
+        <div class="css-illustration">
+          <div class="compass">
+            <div class="arrow-expected"></div>
+            <div class="arrow-actual"></div>
+          </div>
+          <p style="text-align:center; color: var(--text-muted); margin-top: 1rem;">實測數據受採樣當下瞬時風向與<br>局部熱點（交通要道）干擾 <span class="cite">[cite: 1]</span>。</p>
+        </div>
+      </div>
+      <div class="text-column">
+        <h2 class="stagger d-1">理論與實測落差</h2>
+        <div class="content-card stagger d-2">
+          <h3>擴散趨勢偏移嚴重</h3>
+          <p>四個時段皆發生偏移。夏季白天理論應順著西南季風往東北方擴散，實測卻呈現南北向的梯度變化 <span class="cite">[cite: 1]</span>。</p>
+          <h3>落差原因分析</h3>
+          <ul>
+            <li><strong>監測時間侷限：</strong>實測數據受採樣當下瞬時風向影響，與長期盛行風趨勢有落差 <span class="cite">[cite: 1]</span>。</li>
+            <li><strong>局部熱點干擾：</strong>區域內非點源污染(如交通要道)影響程度可能大於工業區定點排放 <span class="cite">[cite: 1]</span>。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P11 PM2.5 數據表 (改為純 HTML 表格) -->
+  <div class="slide">
+    <div class="split-layout">
+      <div class="text-column">
+        <h2 class="stagger d-1">PM2.5 濃度特徵分析</h2>
+        <div class="content-card stagger d-2">
+          <h3>整體趨勢：夏高冬低</h3>
+          <p>夏季(白天13.45、晚上12.86) 顯著高於 冬季(日夜約8.51) <span class="cite">[cite: 1]</span>。</p>
+          <p>夏季受環境風場與局部熱對流影響，易累積；冬季受特定大氣擴散條件(強勁東北季風)良好所致 <span class="cite">[cite: 1]</span>。</p>
+          <h3>日夜變動特徵</h3>
+          <p>夏季白天略高於晚上，反映工廠作業強度高且交通頻繁 <span class="cite">[cite: 1]</span>。</p>
+          <p>冬季日夜數值一致，顯示局部點源日夜波動不明顯 <span class="cite">[cite: 1]</span>。</p>
+          <h3>打破迷思</h3>
+          <p>數值皆低於 WHO 訂定之 45 目標，指認出「密集的工廠點位並不造成空汙加劇」 <span class="cite">[cite: 1]</span>。</p>
+        </div>
+      </div>
+      <div class="image-column stagger d-3">
+        <div class="css-illustration" style="padding: 1rem;">
+          <h3 style="margin-bottom: 1rem;">不同季節與時段之 PM2.5 數值表 <span class="cite">[cite: 1]</span></h3>
+          <div class="data-table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>時段</th>
+                  <th>MEAN (平均值)</th>
+                  <th>MAX (最大值)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>夏天白天</td>
+                  <td>13.45363072710933</td>
+                  <td>13.453631</td>
+                </tr>
+                <tr>
+                  <td>夏天晚上</td>
+                  <td>12.85961485352012</td>
+                  <td>12.859617</td>
+                </tr>
+                <tr>
+                  <td>冬天白天</td>
+                  <td>8.51331744388881</td>
+                  <td>8.513319</td>
+                </tr>
+                <tr>
+                  <td>冬天晚上</td>
+                  <td>8.513317405756563</td>
+                  <td>8.513319</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="font-size: 0.9rem; color: var(--accent); margin-top: 1rem;">※ 數值高度一致，Mean與Max極為接近 <span class="cite">[cite: 1]</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P12 研究限制 (改為純 HTML 示意圖) -->
+  <div class="slide">
+    <div class="split-layout reverse">
+      <div class="image-column stagger d-1">
+        <div class="css-illustration">
+          <h3 style="margin-bottom: 1rem; color: var(--accent);">IDW 空間內插的高度均質化</h3>
+          <div style="width: 100%; height: 200px; position: relative; background: linear-gradient(90deg, var(--surface-color) 0%, var(--surface-highlight) 50%, var(--surface-color) 100%); border-radius: 8px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-around;">
+             <div style="text-align: center;">
+                <div style="font-size: 2rem;">🏭</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">排放源 (峰值)</div>
+             </div>
+             <div style="height: 2px; background: dashed 1px var(--text-muted); width: 50px;"></div>
+             <div style="text-align: center;">
+                <div style="font-size: 2rem; color: #777;">📡</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">感測器 (測得背景值)</div>
+             </div>
+          </div>
+          <p style="text-align:center; font-size: 0.9rem; margin-top: 1rem;">測站未坐落於排放口正下方，加上 IDW 平滑效應<br>導致數據呈現平均化 <span class="cite">[cite: 1]</span>。</p>
+        </div>
+      </div>
+      <div class="text-column">
+        <h2 class="stagger d-1">研究限制與模型缺陷</h2>
+        <div class="content-card stagger d-2">
+          <h3>高度「均質化」</h3>
+          <p>實際觀測網格波段差異小，Mean與Max數值極為接近 <span class="cite">[cite: 1]</span>。</p>
+          <h3>可能原因與缺陷</h3>
+          <ul>
+            <li><strong>監測點位分佈：</strong>現有感測器位置可能未直接坐落於排放口正下方，導致數據反映的是區域背景值而非瞬時峰值 <span class="cite">[cite: 1]</span>。</li>
+            <li><strong>擴散平滑效應：</strong>IDW內插法在處理較疏散的點位時，會產生明顯的平均化效果 <span class="cite">[cite: 1]</span>。</li>
+            <li><strong>密度不足：</strong>現有測站的密度依舊不夠高，未能在工廠密集處完善建制監測網 <span class="cite">[cite: 1]</span>。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P13 結論與建議 (改為純 HTML 示意圖) -->
+  <div class="slide">
+    <div class="split-layout">
+      <div class="text-column">
+        <h2 class="stagger d-1">結論與規劃建議</h2>
+        <div class="content-card stagger d-2">
+          <h3>資料取得不易</h3>
+          <p>微型監測站的資訊取得過程繁雜，需 API 串接，對一般民眾或缺乏程式背景的規劃者相當不友善 <span class="cite">[cite: 1]</span>。</p>
+          <h3>工業區環境衝突再思</h3>
+          <p>非都市土地計畫相對不嚴謹，導致小學、住宅鄰近工廠，該現象無可避免 <span class="cite">[cite: 1]</span>。</p>
+          <p>建議位於工業區周遭的小學可以此為契機，加入環境教育課程，讓學童從小培養對環境的感知，避免不自覺將所有工廠同質化成高汙染分子 <span class="cite">[cite: 1]</span>。</p>
+        </div>
+      </div>
+      <div class="image-column stagger d-3">
+        <div class="css-illustration">
+          <h3 style="color: var(--text-main);">規劃與教育的結合 <span class="cite">[cite: 1]</span></h3>
+          <div class="diagram-box" style="margin-top: 1rem;">
+            <div class="box-item" style="background: rgba(237, 95, 95, 0.2); border-color: var(--accent);">
+              <span class="box-icon">🏭</span>
+              <span style="font-weight:bold;">福興工業區</span>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; color: var(--accent);">
+              <span style="font-size: 1.5rem;">↔</span>
+              <span style="font-size: 0.8rem; background: var(--surface-color); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color);">環境教育契機</span>
+            </div>
+            <div class="box-item" style="background: rgba(255, 255, 255, 0.1);">
+              <span class="box-icon">🏫</span>
+              <span style="font-weight:bold;">大興國小</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 側邊導航 -->
+<div class="sidebar-nav" id="sidebar-nav"></div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const sidebarNav = document.getElementById('sidebar-nav');
+  let currentSlide = 0;
+  let navDots = [];
+
+  // 初始化側邊導航
+  slides.forEach((_, index) => {
+    const dot = document.createElement('button');
+    dot.classList.add('nav-dot');
+    dot.textContent = index + 1;
+    dot.addEventListener('click', () => goToSlide(index));
+    sidebarNav.appendChild(dot);
+    navDots.push(dot);
+  });
+
+  function updateNav() {
+    navDots.forEach((dot, index) => {
+      dot.classList.toggle('active', index === currentSlide);
+    });
+  }
+
+  function goToSlide(index) {
+    if (index < 0) index = slides.length - 1;
+    if (index >= slides.length) index = 0;
+    
+    slides[currentSlide].classList.remove('active');
+    currentSlide = index;
+    slides[currentSlide].classList.add('active');
+    
+    const activeCard = slides[currentSlide].querySelector('.content-card');
+    if (activeCard) activeCard.scrollTop = 0;
+    
+    updateNav();
+  }
+
+  // 畫面點擊與鍵盤翻頁
+  document.body.addEventListener('click', (e) => {
+    if (!e.target.closest('.content-card') && 
+        !e.target.closest('.sidebar-nav') && 
+        !e.target.closest('.compare-slider') &&
+        !e.target.closest('.css-illustration')) {
+      goToSlide(currentSlide + 1);
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') {
+      e.preventDefault(); 
+      goToSlide(currentSlide + 1);
+    } else if (e.key === 'ArrowLeft') {
+      goToSlide(currentSlide - 1);
+    }
+  });
+
+  // 互動影像滑桿邏輯
+  const sliders = document.querySelectorAll('.compare-slider');
+  sliders.forEach(slider => {
+    slider.addEventListener('input', (e) => {
+      const wrapper = e.target.closest('.compare-wrapper');
+      const val = e.target.value;
+      const overlay = wrapper.querySelector('.img-overlay');
+      const handle = wrapper.querySelector('.compare-handle');
+      overlay.style.clipPath = `polygon(0 0, ${val}% 0, ${val}% 100%, 0 100%)`;
+      handle.style.left = `${val}%`;
+    });
+  });
+
+  updateNav();
+</script>
+</body>
+</html>
